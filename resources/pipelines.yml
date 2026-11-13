@@ -1,0 +1,13 @@
+resources:
+  pipelines:
+    retail_sdp:
+      name: retail-sdp-${bundle.target}
+      catalog: ${var.catalog}
+      schema: silver                       # default schema; gold tables use fully-qualified names
+      serverless: true
+      channel: CURRENT
+      continuous: false                    # triggered by the daily job; set true for low-latency streaming
+      configuration:
+        retail.catalog: ${var.catalog}
+      libraries:
+        - glob: { include: ../src/pipelines/sdp/transformations/** }

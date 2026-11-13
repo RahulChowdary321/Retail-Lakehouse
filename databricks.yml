@@ -1,0 +1,30 @@
+bundle:
+  name: retail-lakehouse
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:        { description: Unity Catalog catalog, default: retail_dev }
+  landing_root:   { description: ADLS Gen2 (abfss://...) or UC volume root for batch files, default: /Volumes/retail_dev/landing/raw }
+  warehouse_id:   { description: SQL warehouse for Genie + benchmarks, default: "" }
+  genie_space_id: { description: Genie space id (output of create_genie_space.py), default: "" }
+  sqlserver_connection: { description: UC connection to SQL Server, default: retail_sqlserver_conn }
+  salesforce_connection: { description: UC connection to Salesforce, default: retail_salesforce_conn }
+  spark_version:  { default: 16.4.x-scala2.12 }
+  node_type_id:   { default: Standard_D8ds_v5 }
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace: { host: https://adb-REPLACE_ME.azuredatabricks.net }
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-REPLACE_ME.azuredatabricks.net
+      root_path: /Workspace/Shared/.bundles/${bundle.name}/prod
+    variables:
+      catalog: retail
+      landing_root: abfss://landing@REPLACEACCOUNT.dfs.core.windows.net/retail
+    run_as: { service_principal_name: REPLACE_WITH_SP_APPLICATION_ID }

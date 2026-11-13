@@ -1,0 +1,37 @@
+# Lakeflow Connect managed ingestion (production path). Create the UC connections first
+# (Catalog > Connections). Each destination table lands in <catalog>.bronze.
+# NOTE: schema of ingestion_definition follows the DAB pipelines resource; verify against current docs.
+resources:
+  pipelines:
+    sqlserver_gateway:
+      name: retail-sqlserver-gateway
+      gateway_definition:
+        connection_name: ${var.sqlserver_connection}
+        gateway_storage_catalog: ${var.catalog}
+        gateway_storage_schema: bronze
+        gateway_storage_name: sqlserver_gateway
+
+    sqlserver_ingestion:
+      name: retail-sqlserver-ingestion
+      catalog: ${var.catalog}
+      schema: bronze
+      serverless: true
+      ingestion_definition:
+        ingestion_gateway_id: ${resources.pipelines.sqlserver_gateway.id}
+        objects:
+          - table: { source_catalog: retail_oltp, source_schema: dbo, source_table: stores,      destination_catalog: "${var.catalog}", destination_schema: bronze }
+          - table: { source_catalog: retail_oltp, source_schema: dbo, source_table: products,    destination_catalog: "${var.catalog}", destination_schema: bronze }
+          - table: { source_catalog: retail_oltp, source_schema: dbo, source_table: customers,   destination_catalog: "${var.catalog}", destination_schema: bronze }
+          - table: { source_catalog: retail_oltp, source_schema: dbo, source_table: orders,      destination_catalog: "${var.catalog}", destination_schema: bronze }
+          - table: { source_catalog: retail_oltp, source_schema: dbo, source_table: order_items, destination_catalog: "${var.catalog}", destination_schema: bronze }
+
+    salesforce_ingestion:
+      name: retail-salesforce-ingestion
+      catalog: ${var.catalog}
+      schema: bronze
+      serverless: true
+      ingestion_definition:
+        connection_name: ${var.salesforce_connection}
+        objects:
+          - table: { source_schema: objects, source_table: Contact, destination_catalog: "${var.catalog}", destination_schema: bronze, destination_table: sf_contact }
+          - table: { source_schema: objects, source_table: Case,    destination_catalog: "${var.catalog}", destination_schema: bronze, destination_table: sf_case }

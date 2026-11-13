@@ -1,0 +1,14 @@
+resources:
+  apps:
+    retail_genie_app:
+      name: retail-genie-${bundle.target}
+      description: Natural-language retail analytics on Genie (web UI + Slack + Teams)
+      source_code_path: ../app
+      resources:
+        - name: genie-space
+          genie_space: { name: Retail Sales Assistant, space_id: "${var.genie_space_id}", permission: CAN_RUN }
+        # Secret-backed values for Slack / Teams signature checks (create scope + keys first):
+        - name: slack-signing-secret
+          secret: { scope: retail-app, key: slack-signing-secret, permission: READ }
+        - name: teams-security-token
+          secret: { scope: retail-app, key: teams-security-token, permission: READ }

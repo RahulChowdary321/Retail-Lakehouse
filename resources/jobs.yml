@@ -1,0 +1,70 @@
+resources:
+  jobs:
+    daily_retail_etl:
+      name: retail-daily-etl-${bundle.target}
+      schedule: { quartz_cron_expression: "0 30 2 * * ?", timezone_id: UTC }
+      max_concurrent_runs: 1
+      parameters:
+        - { name: ingest_date, default: "{{job.trigger.time.iso_date}}" }
+      job_clusters:
+        - job_cluster_key: etl
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            autoscale: { min_workers: 2, max_workers: 8 }   # sized for ~15-20 GB/day; scale max for backfills
+            azure_attributes: { availability: SPOT_WITH_FALLBACK_AZURE, first_on_demand: 1 }
+            spark_conf:
+              spark.sql.adaptive.enabled: "true"
+              spark.sql.adaptive.coalescePartitions.enabled: "true"
+              spark.sql.adaptive.skewJoin.enabled: "true"
+              # ~20 GB shuffle / ~128 MB target partition ~= 160 -> 200 (AQE coalesces the excess)
+              spark.sql.shuffle.partitions: "200"
+              spark.databricks.delta.optimizeWrite.enabled: "true"
+              spark.databricks.delta.autoCompact.enabled: "true"
+            data_security_mode: SINGLE_USER
+      tasks:
+        - task_key: load_staging
+          job_cluster_key: etl
+          spark_python_task:
+            python_file: ../src/batch/load_adls_to_staging.py
+            parameters: ["${var.catalog}", "${var.landing_root}", "{{job.parameters.ingest_date}}"]
+        - task_key: run_sdp
+          depends_on: [{ task_key: load_staging }]
+          pipeline_task: { pipeline_id: "${resources.pipelines.retail_sdp.id}", full_refresh: false }
+        - task_key: build_obt
+          depends_on: [{ task_key: run_sdp }]
+          job_cluster_key: etl
+          spark_python_task:
+            python_file: ../src/batch/build_obt.py
+            parameters: ["${var.catalog}", "3"]
+      # Production: add a task before load_staging that triggers the Lakeflow Connect pipelines:
+      #   - task_key: ingest_sqlserver
+      #     pipeline_task: { pipeline_id: "${resources.pipelines.sqlserver_ingestion.id}" }
+
+    weekly_table_maintenance:
+      name: retail-table-maintenance-${bundle.target}
+      schedule: { quartz_cron_expression: "0 0 4 ? * SUN", timezone_id: UTC }
+      tasks:
+        - task_key: optimize
+          new_cluster:
+            spark_version: ${var.spark_version}
+            node_type_id: ${var.node_type_id}
+            num_workers: 4
+            data_security_mode: SINGLE_USER
+          spark_python_task:
+            python_file: ../src/optimize/optimize_tables.py
+            parameters: ["${var.catalog}"]
+
+    genie_benchmarks:
+      name: retail-genie-benchmarks-${bundle.target}
+      schedule: { quartz_cron_expression: "0 0 6 ? * MON", timezone_id: UTC }
+      tasks:
+        - task_key: run_benchmarks
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/genie/run_benchmarks.py
+            parameters: ["--space-id", "${var.genie_space_id}", "--catalog", "${var.catalog}",
+                         "--warehouse-id", "${var.warehouse_id}"]
+      environments:
+        - environment_key: default
+          spec: { client: "2", dependencies: ["databricks-sdk>=0.40"] }

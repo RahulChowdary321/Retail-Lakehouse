@@ -1,0 +1,8 @@
+command: ["python", "main.py"]
+env:
+  - name: GENIE_SPACE_ID
+    valueFrom: genie-space        # resource key declared in resources/app.yml
+  - name: SLACK_SIGNING_SECRET
+    valueFrom: slack-signing-secret
+  - name: TEAMS_SECURITY_TOKEN
+    valueFrom: teams-security-token

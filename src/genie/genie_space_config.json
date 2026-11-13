@@ -1,0 +1,47 @@
+{
+  "title": "Retail Sales Assistant",
+  "description": "Ask questions about retail sales, products, stores, customers, returns and service cases.",
+  "tables": [
+    "gold.obt_retail_sales",
+    "gold.dim_customer",
+    "gold.dim_product",
+    "gold.dim_store",
+    "gold.customer_service_summary"
+  ],
+  "sample_questions": [
+    "What were total net revenue and units sold yesterday?",
+    "Top 10 products by gross margin in the last 30 days",
+    "Which region has the highest return rate this month?",
+    "Compare online vs store revenue by week for the last 8 weeks"
+  ],
+  "instructions": [
+    "Use gold.obt_retail_sales for almost all questions; it is one row per order line.",
+    "Revenue means net_revenue (line_amount minus refunds) unless the user says 'gross' or 'sales before returns'.",
+    "Exclude rows where status = 'CANCELLED' from revenue and units unless asked.",
+    "Return rate = SUM(returned_qty) / SUM(quantity).",
+    "Weeks start on Monday. 'Yesterday' is current_date() - 1 on order_date.",
+    "loyalty_tier_at_purchase is the customer's tier when the order was placed (SCD2); current tier lives in gold.dim_customer where __END_AT IS NULL."
+  ],
+  "benchmarks": [
+    {
+      "question": "What was total net revenue in the last 7 days?",
+      "sql": "SELECT ROUND(SUM(net_revenue),2) AS net_revenue FROM {catalog}.gold.obt_retail_sales WHERE status <> 'CANCELLED' AND order_date >= current_date() - INTERVAL 7 DAYS"
+    },
+    {
+      "question": "Top 5 categories by net revenue this month",
+      "sql": "SELECT category, ROUND(SUM(net_revenue),2) AS net_revenue FROM {catalog}.gold.obt_retail_sales WHERE status <> 'CANCELLED' AND order_date >= date_trunc('month', current_date()) GROUP BY category ORDER BY net_revenue DESC LIMIT 5"
+    },
+    {
+      "question": "Which store had the most units sold in the last 30 days?",
+      "sql": "SELECT store_name, SUM(quantity) AS units FROM {catalog}.gold.obt_retail_sales WHERE status <> 'CANCELLED' AND order_date >= current_date() - INTERVAL 30 DAYS GROUP BY store_name ORDER BY units DESC LIMIT 1"
+    },
+    {
+      "question": "Return rate by region for the last 30 days",
+      "sql": "SELECT region, ROUND(SUM(returned_qty)/SUM(quantity),4) AS return_rate FROM {catalog}.gold.obt_retail_sales WHERE order_date >= current_date() - INTERVAL 30 DAYS GROUP BY region ORDER BY region"
+    },
+    {
+      "question": "Revenue by channel yesterday",
+      "sql": "SELECT channel, ROUND(SUM(net_revenue),2) AS net_revenue FROM {catalog}.gold.obt_retail_sales WHERE status <> 'CANCELLED' AND order_date = current_date() - INTERVAL 1 DAY GROUP BY channel ORDER BY channel"
+    }
+  ]
+}
